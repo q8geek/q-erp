@@ -1,7 +1,17 @@
 """Populate the three demo tenants with realistic per-module content.
 
-Run AFTER `seed_demo`. Idempotent: every row is created via `get_or_create`
-or `update_or_create`, so re-running won't duplicate data.
+Run AFTER `seed_demo`. Domain-data writes are idempotent (everything
+uses `get_or_create` / `update_or_create`), so re-running won't duplicate
+inventory items, accounts, customers, etc.
+
+Two pieces are NOT idempotent and will accumulate on re-runs:
+  * team users — only the User row is `get_or_create`'d, but every run
+    adds them to the Module Users group (already in group; cheap no-op)
+    and ensures their Membership row exists. Net effect on the DB is
+    zero new rows after the first run.
+  * ActivityLog rows — every run writes a fresh batch of ~10-15 rows
+    per team user (logins + reads + writes), backdated across the past
+    week. Pass ``--clear-activity`` to wipe the prior batch first.
 
 Themes:
   * acme    — Acme Industries: light manufacturing co (active modules:
@@ -16,9 +26,18 @@ Themes:
               fixed assets, plus a working automation rule that fires
               a notification when items are saved.
 
+Per-tenant content also includes:
+  * 2-5 users per team and 1-2 users per department (all in the
+    ``Module Users`` group seeded by ``seed_demo`` — view-only on every
+    active module).
+  * Backdated ActivityLog rows for each of those users across the past
+    7 days: 1-3 logins, 3-8 module-read rows, 0-3 module-write rows.
+
 Usage on PythonAnywhere:
     export ALLOW_SEED_DEMO=1
     python manage.py seed_demo_content
+    # Subsequent runs to refresh content without doubling activity:
+    python manage.py seed_demo_content --clear-activity
 """
 from __future__ import annotations
 
@@ -27,6 +46,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
@@ -45,6 +65,16 @@ class Command(BaseCommand):
             choices=["acme", "globex", "initech", "all"],
             default="all",
             help="Limit seeding to a single tenant (default: all three).",
+        )
+        parser.add_argument(
+            "--clear-activity",
+            action="store_true",
+            help=(
+                "Before seeding, delete any ActivityLog rows previously "
+                "seeded by this command (rows whose user_agent is "
+                "'seed_demo_content/1.0'). Use this to avoid duplicate "
+                "activity buildup on re-runs."
+            ),
         )
 
     def handle(self, *args, **options):
@@ -68,6 +98,13 @@ class Command(BaseCommand):
                 )
                 continue
             self.stdout.write(self.style.MIGRATE_HEADING(f"\n=== Seeding {tenant.name} ({slug}) ==="))
+            if options.get("clear_activity"):
+                from apps.activity.models import ActivityLog
+
+                deleted, _ = ActivityLog.objects.filter(
+                    tenant=tenant, user_agent="seed_demo_content/1.0",
+                ).delete()
+                self._log(tenant, "activity", f"cleared {deleted} previously-seeded rows")
             with transaction.atomic(), tenant_scope(tenant):
                 self._seed_one(tenant)
         self.stdout.write(self.style.SUCCESS("\nContent seed complete."))
@@ -113,6 +150,12 @@ class Command(BaseCommand):
             self._seed_assets(tenant)
         if "automation" in active:
             self._seed_automation(tenant, admin=admin)
+
+        # Populate 2-5 users per team + 1-2 per department, then generate
+        # backdated ActivityLog rows for them targeted at modules they have
+        # access to.
+        team_users = self._seed_team_users(tenant)
+        self._seed_activity_for_users(tenant, team_users, active=active)
 
     # ------------------------------------------------------------------
     # Per-module seeders. All are idempotent.
@@ -785,6 +828,305 @@ class Command(BaseCommand):
             },
         )
         self._log(tenant, "automation", "2 rules configured")
+
+    # ------------------------------------------------------------------
+    # Team users + per-user activity
+    # ------------------------------------------------------------------
+
+    def _seed_team_users(self, tenant: Tenant) -> list[User]:
+        """Create 2-5 users per team and 1-2 users per department.
+
+        All new users go into the per-tenant ``Module Users`` group
+        (`seed_demo` creates it), which has view perms on every module
+        the tenant has active. They have no manage perms — making them a
+        good fixture for the UI-gating behaviour as well as for
+        activity-log volume.
+
+        Returns the list of newly-created (or already-existing) users so
+        the caller can drive activity generation against them.
+        """
+        import random
+        from apps.org.models import Department, Membership, Team
+
+        # Deterministic seed per tenant so re-runs are stable.
+        rng = random.Random(f"team-users-{tenant.slug}")
+
+        first_names = [
+            "Alex", "Riley", "Jamie", "Casey", "Morgan", "Avery", "Quinn",
+            "Sage", "Robin", "Drew", "Sam", "Jordan", "Taylor", "Kai", "Reese",
+            "Parker", "Hayden", "Rowan", "Skyler", "Emerson",
+        ]
+        last_names = [
+            "Smith", "Patel", "Garcia", "Lee", "Kim", "Brown", "Davis",
+            "Wilson", "Lopez", "Martin", "Khan", "Singh", "Chen", "Nguyen",
+            "Rossi", "Hassan", "Costa", "Yamamoto", "Andersen", "Bauer",
+        ]
+
+        # Locate the per-tenant Module Users group (created by seed_demo).
+        mu_group_name = f"t{tenant.id}:Module Users"
+        try:
+            mu_group = Group.objects.get(name=mu_group_name)
+        except Group.DoesNotExist:
+            mu_group = None  # safe degradation; users still get created
+
+        created_users: list[User] = []
+
+        departments = list(Department.objects.filter(tenant=tenant))
+        teams = list(Team.objects.filter(tenant=tenant))
+
+        # 2-5 users per team
+        for team in teams:
+            n = rng.randint(2, 5)
+            for i in range(n):
+                username = self._team_user_name(tenant, team.code, i, rng, first_names, last_names)
+                user = self._ensure_team_user(tenant, username, mu_group)
+                Membership.objects.update_or_create(
+                    tenant=tenant, user=user, department=team.department, team=team,
+                    defaults={"title": "Team Member", "is_head_of_department": False, "is_head_of_team": False},
+                )
+                created_users.append(user)
+
+        # 1-2 users per department (no team — works for departments that
+        # don't have a team yet, like Operations/Finance/etc.)
+        for dept in departments:
+            n = rng.randint(1, 2)
+            for i in range(n):
+                username = self._team_user_name(tenant, f"dept-{dept.code}", i, rng, first_names, last_names)
+                user = self._ensure_team_user(tenant, username, mu_group)
+                Membership.objects.update_or_create(
+                    tenant=tenant, user=user, department=dept, team=None,
+                    defaults={"title": "Staff", "is_head_of_department": False, "is_head_of_team": False},
+                )
+                created_users.append(user)
+
+        # Dedupe (a user can be created twice if their username happened
+        # to be identical across teams/departments — extremely unlikely
+        # given the RNG, but defensively dedupe by id).
+        seen: dict[int, User] = {}
+        for u in created_users:
+            seen.setdefault(u.pk, u)
+        created_users = list(seen.values())
+
+        self._log(
+            tenant, "team_users",
+            f"{len(created_users)} team/dept users (Module Users group)",
+        )
+        return created_users
+
+    def _team_user_name(
+        self, tenant: Tenant, scope: str, index: int,
+        rng, first_names: list[str], last_names: list[str],
+    ) -> str:
+        """Deterministic, slug-safe, tenant-unique username."""
+        first = rng.choice(first_names).lower()
+        last = rng.choice(last_names).lower()
+        scope_slug = scope.lower().replace("-", "").replace("_", "")
+        return f"{tenant.slug}-{scope_slug}-{first}-{last}-{index}"[:150]
+
+    def _ensure_team_user(
+        self, tenant: Tenant, username: str, mu_group: Group | None,
+    ) -> User:
+        """Idempotent: get-or-create the user, ensure password+group set."""
+        user, created = User.objects.get_or_create(
+            username=username,
+            defaults={
+                "email": f"{username}@{tenant.slug}.example",
+                "tenant": tenant,
+                "first_name": username.split("-")[2].capitalize() if len(username.split("-")) > 3 else "",
+                "last_name": username.split("-")[3].capitalize() if len(username.split("-")) > 4 else "",
+            },
+        )
+        if created:
+            user.tenant = tenant
+            user.set_password("pass")
+            user.save()
+        if mu_group is not None and not user.groups.filter(pk=mu_group.pk).exists():
+            user.groups.add(mu_group)
+        return user
+
+    # ------------------------------------------------------------------
+
+    def _seed_activity_for_users(
+        self, tenant: Tenant, users: list[User], *, active: set[str]
+    ) -> None:
+        """Backdate a realistic spread of ActivityLog rows for ``users``.
+
+        Each user gets:
+          * one or two AUTH login events,
+          * 3-8 MODULE_READ rows targeting modules they can view, and
+          * 0-3 MODULE_WRITE rows for modules where writes make sense.
+
+        Rows are scattered over the last 7 days so the activity viewer
+        (paginated, ordered by -timestamp) shows realistic content.
+        """
+        import random
+        from apps.activity.models import ActivityLog
+
+        if not users:
+            return
+
+        rng = random.Random(f"activity-{tenant.slug}")
+        now = timezone.now()
+        total = 0
+
+        # Per-module "this is what users do here" template. Each entry
+        # is (action_suffix, http_method, http_path_template).
+        read_actions = {
+            "finance": [("account.list", "GET", "/finance/account/")],
+            "inventory": [
+                ("item.list", "GET", "/inventory/item/"),
+                ("warehouse.list", "GET", "/inventory/warehouse/"),
+            ],
+            "procurement": [
+                ("supplier.list", "GET", "/procurement/supplier/"),
+                ("purchaseorder.list", "GET", "/procurement/purchaseorder/"),
+            ],
+            "tasks": [
+                ("task.list", "GET", "/tasks/task/"),
+                ("my_tasks", "GET", "/tasks/my/"),
+            ],
+            "org": [
+                ("department.list", "GET", "/org/department/"),
+                ("team.list", "GET", "/org/team/"),
+            ],
+            "messaging": [("inbox", "GET", "/messaging/")],
+            "statistics": [("dashboard", "GET", "/statistics/")],
+            "hr": [("employee.list", "GET", "/hr/employee/")],
+            "crm": [
+                ("customer.list", "GET", "/crm/customer/"),
+                ("lead.list", "GET", "/crm/lead/"),
+            ],
+            "sales": [
+                ("salesorder.list", "GET", "/sales/salesorder/"),
+                ("quote.list", "GET", "/sales/quote/"),
+            ],
+            "support_tickets": [
+                ("ticket.list", "GET", "/support_tickets/ticket/"),
+            ],
+            "manufacturing": [
+                ("billofmaterials.list", "GET", "/manufacturing/billofmaterials/"),
+                ("workorder.list", "GET", "/manufacturing/workorder/"),
+            ],
+            "documents": [
+                ("folder.list", "GET", "/documents/folder/"),
+                ("document.list", "GET", "/documents/document/"),
+            ],
+            "projects": [
+                ("project.list", "GET", "/projects/project/"),
+                ("timesheet.list", "GET", "/projects/timesheet/"),
+            ],
+            "assets": [
+                ("asset.list", "GET", "/assets/asset/"),
+            ],
+            "automation": [
+                ("rule.list", "GET", "/automation/"),
+            ],
+        }
+
+        # Write activities — only sensible for users who actually have
+        # manage perms. Since team users only get view perms, we use these
+        # to flavour the activity feed for the admin / regular users.
+        # Restrict the write set to actions a typical tenant user might
+        # perform (status updates on their assigned items).
+        write_actions = {
+            "tasks": [("task.update", "POST", "/tasks/task/{pk}/edit/")],
+        }
+
+        for user in users:
+            # 1. Auth events: 1-3 logins per user backdated across the
+            # last week.
+            for offset_days in self._random_offsets(rng, 1, 3, 7):
+                row = ActivityLog.objects.create(
+                    tenant=tenant, actor=user,
+                    actor_username_snapshot=user.username,
+                    category=ActivityLog.Category.AUTH,
+                    action="user.login",
+                    request_method="POST",
+                    request_path="/accounts/login/",
+                    status_code=200,
+                    ip_address="127.0.0.1",
+                    user_agent="seed_demo_content/1.0",
+                )
+                # auto_now_add prevents passing timestamp on create;
+                # backdate post-hoc via update().
+                ActivityLog.objects.filter(pk=row.pk).update(
+                    timestamp=now - timedelta(
+                        days=offset_days,
+                        hours=rng.randint(0, 23),
+                        minutes=rng.randint(0, 59),
+                    ),
+                )
+                total += 1
+
+            # 2. Module reads — sample 3-8 per user across modules they
+            # can view (= every active module on this tenant).
+            user_modules = [m for m in active if m in read_actions]
+            num_reads = rng.randint(3, 8)
+            for _ in range(num_reads):
+                if not user_modules:
+                    break
+                module = rng.choice(user_modules)
+                action_suffix, method, path = rng.choice(read_actions[module])
+                row = ActivityLog.objects.create(
+                    tenant=tenant, actor=user,
+                    actor_username_snapshot=user.username,
+                    category=ActivityLog.Category.MODULE_READ,
+                    action=f"{module}:{action_suffix}",
+                    request_method=method,
+                    request_path=f"/t/{tenant.slug}{path}",
+                    status_code=200,
+                    ip_address="127.0.0.1",
+                    user_agent="seed_demo_content/1.0",
+                )
+                ActivityLog.objects.filter(pk=row.pk).update(
+                    timestamp=now - timedelta(
+                        days=rng.randint(0, 6),
+                        hours=rng.randint(0, 23),
+                        minutes=rng.randint(0, 59),
+                    ),
+                )
+                total += 1
+
+            # 3. Module writes — only sampled where it makes sense.
+            num_writes = rng.randint(0, 3)
+            for _ in range(num_writes):
+                module = rng.choice(list(write_actions.keys()))
+                if module not in active:
+                    continue
+                action_suffix, method, path = rng.choice(write_actions[module])
+                fake_pk = rng.randint(1, 50)
+                row = ActivityLog.objects.create(
+                    tenant=tenant, actor=user,
+                    actor_username_snapshot=user.username,
+                    category=ActivityLog.Category.MODULE_WRITE,
+                    action=f"{module}:{action_suffix}",
+                    object_type=f"{module}.task",
+                    object_id=str(fake_pk),
+                    object_repr=f"Task #{fake_pk}",
+                    request_method=method,
+                    request_path=f"/t/{tenant.slug}{path.format(pk=fake_pk)}",
+                    status_code=302,
+                    ip_address="127.0.0.1",
+                    user_agent="seed_demo_content/1.0",
+                )
+                ActivityLog.objects.filter(pk=row.pk).update(
+                    timestamp=now - timedelta(
+                        days=rng.randint(0, 6),
+                        hours=rng.randint(0, 23),
+                        minutes=rng.randint(0, 59),
+                    ),
+                )
+                total += 1
+
+        self._log(
+            tenant, "activity",
+            f"{total} backdated activity rows across {len(users)} team users",
+        )
+
+    def _random_offsets(self, rng, lo: int, hi: int, span_days: int) -> list[int]:
+        """Return a small list of distinct day offsets in [0, span_days]."""
+        n = rng.randint(lo, hi)
+        return [rng.randint(0, span_days) for _ in range(n)]
 
     # ------------------------------------------------------------------
     # Helpers

@@ -1,5 +1,7 @@
 {% extends "base.html" %}
+{% load qerp_extras %}
 {% block content %}
+{% with can_manage=user|can_manage_module:"tasks" %}
 <h1>My Open Tasks</h1>
 <table>
   <thead><tr><th>Title</th><th>Project</th><th>Priority</th><th>Status</th><th>Due</th><th></th></tr></thead>
@@ -11,9 +13,15 @@
       <td>{{ t.get_priority_display }}</td>
       <td>{{ t.get_status_display }}</td>
       <td>{{ t.due_date|default:"-" }}</td>
-      <td><a class="btn small" href="{% url 'tasks:task_edit' tenant_slug=tenant.slug pk=t.pk %}">edit</a></td>
+      <td>
+        <a class="btn small" href="{% url 'tasks:task_detail' tenant_slug=tenant.slug pk=t.pk %}">view</a>
+        {% if can_manage %}
+        <a class="btn small secondary" href="{% url 'tasks:task_edit' tenant_slug=tenant.slug pk=t.pk %}">edit</a>
+        {% endif %}
+      </td>
     </tr>
     {% empty %}<tr><td colspan="6" class="muted">No open tasks.</td></tr>{% endfor %}
   </tbody>
 </table>
+{% endwith %}
 {% endblock %}

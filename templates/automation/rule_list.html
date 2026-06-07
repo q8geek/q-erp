@@ -1,8 +1,12 @@
 {% extends "base.html" %}
+{% load qerp_extras %}
 {% block content %}
+{% with can_manage=user|can_manage_module:"automation" %}
 <h1>Automation Rules</h1>
 <p>
+  {% if can_manage %}
   <a class="btn" href="{% url 'automation:rule_create' tenant_slug=tenant.slug %}">+ New Rule</a>
+  {% endif %}
   <a class="btn secondary" href="{% url 'automation:rulerun_list' tenant_slug=tenant.slug %}">Run history</a>
 </p>
 
@@ -18,11 +22,14 @@
       <td>{{ r.last_run_at|date:"Y-m-d H:i"|default:"-" }}</td>
       <td>{{ r.last_run_status|default:"-" }}{% if r.last_run_error %} <span class="badge" style="background:#dc3545;">err</span>{% endif %}</td>
       <td>
+        {% if can_manage %}
         <a class="btn small" href="{% url 'automation:rule_edit' tenant_slug=tenant.slug pk=r.pk %}">edit</a>
         <a class="btn small danger" href="{% url 'automation:rule_delete' tenant_slug=tenant.slug pk=r.pk %}">del</a>
+        {% endif %}
       </td>
     </tr>
     {% empty %}<tr><td colspan="7" class="muted">No rules yet.</td></tr>{% endfor %}
   </tbody>
 </table>
+{% endwith %}
 {% endblock %}

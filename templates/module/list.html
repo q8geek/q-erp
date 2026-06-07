@@ -1,11 +1,14 @@
 {% extends "base.html" %}
 {% load qerp_extras %}
 {% block content %}
+{% with can_manage=user|can_manage_module:module_code %}
 <h1>{{ verbose_name_plural|capfirst }}</h1>
 
+{% if can_manage %}
 <p>
   <a class="btn" href="{% url config.url_namespace|add:":"|add:model_name|add:"_create" tenant_slug=tenant.slug %}">+ New {{ verbose_name }}</a>
 </p>
+{% endif %}
 
 <table>
   <thead>
@@ -20,8 +23,10 @@
       {% for f in list_display %}<td>{% with v=obj|get_attr:f %}{{ v|default_if_none:"" }}{% endwith %}</td>{% endfor %}
       <td>
         <a class="btn small" href="{% url config.url_namespace|add:":"|add:model_name|add:"_detail" tenant_slug=tenant.slug pk=obj.pk %}">view</a>
+        {% if can_manage %}
         <a class="btn small secondary" href="{% url config.url_namespace|add:":"|add:model_name|add:"_edit" tenant_slug=tenant.slug pk=obj.pk %}">edit</a>
         <a class="btn small danger" href="{% url config.url_namespace|add:":"|add:model_name|add:"_delete" tenant_slug=tenant.slug pk=obj.pk %}">del</a>
+        {% endif %}
       </td>
     </tr>
     {% empty %}
@@ -37,4 +42,5 @@
   {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">next »</a>{% endif %}
 </p>
 {% endif %}
+{% endwith %}
 {% endblock %}

@@ -15,7 +15,9 @@
       <td>{{ u.last_seen_at|default:"-" }}</td>
       <td>
         <a class="btn small" href="{% url 'tenant_admin:user_edit' tenant_slug=tenant.slug user_id=u.id %}">edit</a>
+        {% if u.id != user.id %}
         <a class="btn small danger" href="{% url 'tenant_admin:user_delete' tenant_slug=tenant.slug user_id=u.id %}">del</a>
+        {% endif %}
       </td>
     </tr>
     {% empty %}<tr><td colspan="6" class="muted">No users.</td></tr>{% endfor %}

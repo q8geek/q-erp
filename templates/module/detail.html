@@ -1,11 +1,14 @@
 {% extends "base.html" %}
 {% load qerp_extras %}
 {% block content %}
+{% with can_manage=user|can_manage_module:module_code %}
 <h1>{{ object }}</h1>
 <p>
   <a class="btn" href="{% url config.url_namespace|add:":"|add:model_name|add:"_list" tenant_slug=tenant.slug %}">« back</a>
+  {% if can_manage %}
   <a class="btn secondary" href="{% url config.url_namespace|add:":"|add:model_name|add:"_edit" tenant_slug=tenant.slug pk=object.pk %}">edit</a>
   <a class="btn danger" href="{% url config.url_namespace|add:":"|add:model_name|add:"_delete" tenant_slug=tenant.slug pk=object.pk %}">delete</a>
+  {% endif %}
 </p>
 
 <div class="card">
@@ -18,4 +21,5 @@
     {% endfor %}
   </table>
 </div>
+{% endwith %}
 {% endblock %}
