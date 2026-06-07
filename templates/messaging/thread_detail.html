@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ thread.subject|default:"(no subject)" }} <small class="muted">{{ thread.get_kind_display }}</small></h1>
+<p><a class="btn secondary" href="{% url 'messaging:inbox' tenant_slug=tenant.slug %}">« inbox</a></p>
+
+<div class="card">
+  {% for msg in messages_list %}
+    <div style="margin-bottom:.75rem;padding-bottom:.75rem;border-bottom:1px solid #eee;">
+      <div class="muted" style="font-size:.85rem;">
+        {% if msg.is_system %}<span class="badge">SYSTEM</span>{% else %}{{ msg.sender|default:"system" }}{% endif %}
+        · {{ msg.created_at|date:"Y-m-d H:i" }}
+      </div>
+      <div style="white-space:pre-wrap;">{{ msg.body }}</div>
+    </div>
+  {% endfor %}
+</div>
+
+{% if thread.kind != "NOTIFICATION" %}
+<form method="post" class="card">{% csrf_token %}
+  {{ form.as_p }}
+  <button class="btn" type="submit">Reply</button>
+</form>
+{% else %}
+  <p class="muted">This is a system notification thread — replies are disabled.</p>
+{% endif %}
+{% endblock %}

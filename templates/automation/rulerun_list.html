@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Rule Run History</h1>
+<p><a class="btn secondary" href="{% url 'automation:rule_list' tenant_slug=tenant.slug %}">« rules</a></p>
+
+<table>
+  <thead><tr><th>When</th><th>Rule</th><th>Event</th><th>Status</th><th>Triggered by</th><th>Error</th></tr></thead>
+  <tbody>
+    {% for run in runs %}
+    <tr>
+      <td>{{ run.created_at|date:"Y-m-d H:i:s" }}</td>
+      <td>{{ run.rule.name }}</td>
+      <td><code>{{ run.event_type }}</code></td>
+      <td>{% if run.status == "MATCHED" %}<span class="badge">{{ run.status }}</span>{% elif run.status == "ERROR" %}<span class="badge" style="background:#dc3545;">{{ run.status }}</span>{% else %}<span class="badge muted">{{ run.status }}</span>{% endif %}</td>
+      <td>{{ run.triggered_by|default:"-" }}</td>
+      <td><small>{{ run.error|truncatechars:120 }}</small></td>
+    </tr>
+    {% empty %}<tr><td colspan="6" class="muted">No runs.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

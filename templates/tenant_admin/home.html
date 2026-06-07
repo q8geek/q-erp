@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Tenant Administration</h1>
+
+<div class="row">
+  <div class="card"><div class="muted">Seats used</div><div style="font-size:1.6rem;">{{ seats_used }}{% if seats_limit %} / {{ seats_limit }}{% endif %}</div></div>
+  <div class="card"><div class="muted">Active modules</div><div style="font-size:1.6rem;">{{ active_modules|length }}</div></div>
+</div>
+
+<div class="card">
+  <h3>Active modules</h3>
+  <table>
+    <thead><tr><th>Module</th><th>Type</th></tr></thead>
+    <tbody>
+      {% for tm in active_modules %}
+      <tr>
+        <td>{{ tm.module.name }}</td>
+        <td>{% if tm.module.is_core %}<span class="badge">core</span>{% else %}<span class="badge muted">add-on</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:1rem;">Core modules can only be disabled by system admins.</p>
+</div>
+
+<p>
+  <a class="btn" href="{% url 'tenant_admin:user_list' tenant_slug=tenant.slug %}">Manage Users</a>
+  <a class="btn" href="{% url 'tenant_admin:group_list' tenant_slug=tenant.slug %}">Manage Groups</a>
+  <a class="btn" href="{% url 'tenant_admin:settings' tenant_slug=tenant.slug %}">Settings & Branding</a>
+  <a class="btn" href="{% url 'tenant_admin:activity' tenant_slug=tenant.slug %}">Activity Log</a>
+</p>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load qerp_extras %}
+{% block content %}
+<h1>{{ verbose_name_plural|capfirst }}</h1>
+
+<p>
+  <a class="btn" href="{% url config.url_namespace|add:":"|add:model_name|add:"_create" tenant_slug=tenant.slug %}">+ New {{ verbose_name }}</a>
+</p>
+
+<table>
+  <thead>
+    <tr>
+      {% for f in list_display %}<th>{{ f }}</th>{% endfor %}
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for obj in objects %}
+    <tr>
+      {% for f in list_display %}<td>{% with v=obj|get_attr:f %}{{ v|default_if_none:"" }}{% endwith %}</td>{% endfor %}
+      <td>
+        <a class="btn small" href="{% url config.url_namespace|add:":"|add:model_name|add:"_detail" tenant_slug=tenant.slug pk=obj.pk %}">view</a>
+        <a class="btn small secondary" href="{% url config.url_namespace|add:":"|add:model_name|add:"_edit" tenant_slug=tenant.slug pk=obj.pk %}">edit</a>
+        <a class="btn small danger" href="{% url config.url_namespace|add:":"|add:model_name|add:"_delete" tenant_slug=tenant.slug pk=obj.pk %}">del</a>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="{{ list_display|length|add:1 }}" class="muted">No records yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if is_paginated %}
+<p>
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">« prev</a>{% endif %}
+  page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">next »</a>{% endif %}
+</p>
+{% endif %}
+{% endblock %}

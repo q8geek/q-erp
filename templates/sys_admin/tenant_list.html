@@ -1,0 +1,22 @@
+{% extends "sys_base.html" %}
+{% block content %}
+<h1>Tenants</h1>
+{% if user.is_global_admin %}<p><a class="btn" href="{% url 'sys_admin:tenant_create' %}">+ New Tenant</a></p>{% endif %}
+<table>
+  <thead><tr><th>Slug</th><th>Name</th><th>Active</th><th>Created</th><th></th></tr></thead>
+  <tbody>
+    {% for t in tenants %}
+    <tr>
+      <td>{{ t.slug }}</td>
+      <td>{{ t.name }}</td>
+      <td>{{ t.is_active|yesno }}</td>
+      <td>{{ t.created_at|date:"Y-m-d" }}</td>
+      <td>
+        <a class="btn small" href="{% url 'sys_admin:tenant_detail' tenant_id=t.id %}">manage</a>
+        <a class="btn small secondary" href="/t/{{ t.slug }}/dashboard/">visit</a>
+      </td>
+    </tr>
+    {% empty %}<tr><td colspan="5">No tenants accessible.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

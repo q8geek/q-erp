@@ -1,0 +1,36 @@
+{% extends "sys_base.html" %}
+{% block content %}
+<h1>System Activity Log</h1>
+
+<form method="get" class="card">
+  <div style="display:flex;gap:1rem;">
+    <div><label>Category</label><select name="category">
+      <option value="">(all)</option>
+      {% for code, label in categories %}<option value="{{ code }}" {% if filters.category == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select></div>
+    <div><label>Action prefix</label><input name="action" value="{{ filters.action }}"></div>
+  </div>
+  <button class="btn" type="submit">Filter</button>
+</form>
+
+<table>
+  <thead><tr><th>Time</th><th>Tenant</th><th>Actor</th><th>Category</th><th>Action</th><th>Object</th><th>Status</th></tr></thead>
+  <tbody>
+    {% for log in logs %}
+    <tr>
+      <td>{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+      <td>{{ log.tenant.slug|default:"-" }}</td>
+      <td>{{ log.actor_username_snapshot }}</td>
+      <td>{{ log.get_category_display }}</td>
+      <td>{{ log.action }}</td>
+      <td>{{ log.object_repr }}</td>
+      <td>{{ log.status_code|default:"-" }}</td>
+    </tr>
+    {% empty %}<tr><td colspan="7">No activity.</td></tr>{% endfor %}
+  </tbody>
+</table>
+
+{% if is_paginated %}
+<p>{% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">« prev</a>{% endif %} page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }} {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">next »</a>{% endif %}</p>
+{% endif %}
+{% endblock %}

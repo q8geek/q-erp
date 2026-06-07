@@ -1,0 +1,14 @@
+{% extends "sys_base.html" %}
+{% block content %}
+<h1>System Admin Dashboard</h1>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
+  <div class="card"><div>Tenants</div><div style="font-size:2rem;">{{ tenant_count }}</div></div>
+  <div class="card"><div>Modules</div><div style="font-size:2rem;">{{ module_count }}</div></div>
+  <div class="card"><div>Plans</div><div style="font-size:2rem;">{{ plan_count }}</div></div>
+</div>
+
+<h3>Accessible tenants</h3>
+<ul>
+  {% for t in tenants %}<li><a href="{% url 'sys_admin:tenant_detail' tenant_id=t.id %}">{{ t.name }}</a> ({{ t.slug }}){% if not t.is_active %} <span class="badge muted">inactive</span>{% endif %}</li>{% endfor %}
+</ul>
+{% endblock %}

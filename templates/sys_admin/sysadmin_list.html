@@ -1,0 +1,18 @@
+{% extends "sys_base.html" %}
+{% block content %}
+<h1>System Admins</h1>
+<p><a class="btn" href="{% url 'sys_admin:sysadmin_create' %}">+ New</a></p>
+<table>
+  <thead><tr><th>Username</th><th>Email</th><th>Global</th><th>Active</th></tr></thead>
+  <tbody>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.username }}</td>
+      <td>{{ u.email }}</td>
+      <td>{{ u.is_global_admin|yesno }}</td>
+      <td>{{ u.is_active|yesno }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

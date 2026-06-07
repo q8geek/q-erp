@@ -1,0 +1,10 @@
+{% extends "sys_base.html" %}
+{% block content %}
+<h1>Create Tenant</h1>
+<form method="post" class="card">{% csrf_token %}
+  {{ form.as_p }}
+  <button class="btn" type="submit">Create</button>
+  <a class="btn secondary" href="{% url 'sys_admin:tenant_list' %}">Cancel</a>
+</form>
+<p class="muted">Core modules (Finance, Inventory, Procurement) will be automatically attached. Choose a plan to also activate add-on modules.</p>
+{% endblock %}

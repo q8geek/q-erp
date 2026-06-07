@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{% if instance %}Edit{% else %}New{% endif %} Rule</h1>
+
+<form method="post" class="card">{% csrf_token %}
+  {{ form.as_p }}
+  <button class="btn" type="submit">Save</button>
+  <a class="btn secondary" href="{% url 'automation:rule_list' tenant_slug=tenant.slug %}">Cancel</a>
+</form>
+
+<div class="card">
+  <h3>Available events</h3>
+  <table>
+    <thead><tr><th>Code</th><th>Description</th><th>Payload fields</th></tr></thead>
+    <tbody>
+      {% for code, ev in events.items %}
+      <tr>
+        <td><code>{{ code }}</code></td>
+        <td>{{ ev.description }}</td>
+        <td><small>{% for fname, desc in ev.payload_fields.items %}<code>{{ fname }}</code> {{ desc }}<br>{% endfor %}</small></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h3>Available actions</h3>
+  <table>
+    <thead><tr><th>Code</th><th>Description</th><th>Params</th></tr></thead>
+    <tbody>
+      {% for code, act in actions.items %}
+      <tr>
+        <td><code>{{ code }}</code></td>
+        <td>{{ act.description }}</td>
+        <td><small>{% for p, desc in act.params.items %}<code>{{ p }}</code>: {{ desc }}<br>{% endfor %}</small></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

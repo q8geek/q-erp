@@ -1,0 +1,48 @@
+{% extends "sys_base.html" %}
+{% block content %}
+<h1>{{ tenant.name }} <small class="muted">({{ tenant.slug }})</small></h1>
+<p>
+  <a class="btn" href="/t/{{ tenant.slug }}/dashboard/">Open tenant dashboard</a>
+  <a class="btn secondary" href="{% url 'sys_admin:tenant_edit' tenant_id=tenant.id %}">Edit tenant</a>
+  <a class="btn secondary" href="{% url 'sys_admin:subscription_edit' tenant_id=tenant.id %}">Edit subscription</a>
+</p>
+
+<div class="card">
+  <h3>Subscription</h3>
+  {% if subscription %}
+    Plan: <strong>{{ subscription.plan.name|default:"(custom)" }}</strong> · Seats: {{ subscription.seat_limit_override|default:subscription.plan.seat_limit }} · {{ subscription.is_active|yesno:"active,inactive" }}
+  {% else %}
+    <em>No active subscription.</em>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Modules</h3>
+  <table>
+    <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>State</th><th></th></tr></thead>
+    <tbody>
+      {% for m in all_modules %}
+        {% with tm=None %}
+        {% for ttm in tenant_modules %}{% if ttm.module_id == m.id %}{% with tm=ttm %}{% endwith %}{% endif %}{% endfor %}
+        {% endwith %}
+      <tr>
+        <td>{{ m.code }}</td>
+        <td>{{ m.name }}</td>
+        <td>{% if m.is_core %}<span class="badge core">core</span>{% else %}<span class="badge muted">add-on</span>{% endif %}</td>
+        <td>
+          {% for ttm in tenant_modules %}{% if ttm.module_id == m.id %}
+            {% if ttm.disabled_at %}<span class="badge muted">disabled</span>{% else %}<span class="badge">enabled</span>{% endif %}
+          {% endif %}{% endfor %}
+        </td>
+        <td>
+          <form method="post" action="{% url 'sys_admin:tenant_module_toggle' tenant_id=tenant.id module_id=m.id %}" style="display:inline">{% csrf_token %}
+            <button class="btn small {% if m.is_core %}danger{% endif %}" type="submit">toggle</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">Disabling a core module is non-standard and logged as SYSTEM_ADMIN.</p>
+</div>
+{% endblock %}

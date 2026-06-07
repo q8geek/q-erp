@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Delete {{ kind }}: {{ object }}?</h1>
+<form method="post" class="card">{% csrf_token %}
+  <button class="btn danger" type="submit">Delete</button>
+  <a class="btn secondary" href="javascript:history.back()">Cancel</a>
+</form>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "sys_base.html" %}
+{% block content %}
+<h1>Subscription for {{ tenant.name }}</h1>
+<form method="post" class="card">{% csrf_token %}
+  {{ form.as_p }}
+  <button class="btn" type="submit">Save</button>
+  <a class="btn secondary" href="{% url 'sys_admin:tenant_detail' tenant_id=tenant.id %}">Cancel</a>
+</form>
+{% endblock %}

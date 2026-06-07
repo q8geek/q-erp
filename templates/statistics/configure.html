@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Configure Statistics Dashboard</h1>
+
+<form method="post" class="card">{% csrf_token %}
+  <table>
+    <thead><tr><th>On</th><th>Widget</th><th>Module</th><th>Order</th><th>Label override</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><input type="checkbox" name="{{ r.code }}__enabled" {% if r.enabled %}checked{% endif %}></td>
+        <td><strong>{{ r.label }}</strong><br><small class="muted">{{ r.description }}</small></td>
+        <td><span class="pill">{{ r.module }}</span></td>
+        <td><input type="number" name="{{ r.code }}__sort" value="{{ r.sort_order }}" style="width:70px;"></td>
+        <td><input type="text" name="{{ r.code }}__label" value="{{ r.label_override }}" placeholder="(optional)"></td>
+      </tr>
+      {% empty %}<tr><td colspan="5" class="muted">No widgets available — no matching modules active.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  <button class="btn" type="submit">Save</button>
+  <a class="btn secondary" href="{% url 'statistics:dashboard' tenant_slug=tenant.slug %}">Cancel</a>
+</form>
+{% endblock %}

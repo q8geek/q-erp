@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Groups</h1>
+<p><a class="btn" href="{% url 'tenant_admin:group_create' tenant_slug=tenant.slug %}">+ New Group</a></p>
+<table>
+  <thead><tr><th>Name</th><th>Type</th><th>Description</th><th></th></tr></thead>
+  <tbody>
+    {% for tg in tenant_groups %}
+    <tr>
+      <td>{{ tg.group.name|cut:"t" }}</td>
+      <td>{% if tg.is_system_managed %}<span class="badge">system</span>{% else %}<span class="badge muted">custom</span>{% endif %}</td>
+      <td>{{ tg.description }}</td>
+      <td>
+        <a class="btn small" href="{% url 'tenant_admin:group_edit' tenant_slug=tenant.slug group_id=tg.id %}">edit</a>
+        {% if not tg.is_system_managed %}<a class="btn small danger" href="{% url 'tenant_admin:group_delete' tenant_slug=tenant.slug group_id=tg.id %}">del</a>{% endif %}
+      </td>
+    </tr>
+    {% empty %}<tr><td colspan="4" class="muted">No groups.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

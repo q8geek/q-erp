@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Tenant Settings</h1>
+<form method="post" enctype="multipart/form-data" class="card">{% csrf_token %}
+  {{ form.as_p }}
+  <button class="btn" type="submit">Save</button>
+</form>
+{% endblock %}

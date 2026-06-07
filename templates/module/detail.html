@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load qerp_extras %}
+{% block content %}
+<h1>{{ object }}</h1>
+<p>
+  <a class="btn" href="{% url config.url_namespace|add:":"|add:model_name|add:"_list" tenant_slug=tenant.slug %}">« back</a>
+  <a class="btn secondary" href="{% url config.url_namespace|add:":"|add:model_name|add:"_edit" tenant_slug=tenant.slug pk=object.pk %}">edit</a>
+  <a class="btn danger" href="{% url config.url_namespace|add:":"|add:model_name|add:"_delete" tenant_slug=tenant.slug pk=object.pk %}">delete</a>
+</p>
+
+<div class="card">
+  <table>
+    {% for label, fname in object_fields %}
+      <tr>
+        <th style="width:30%;">{{ label|capfirst }}</th>
+        <td>{% with v=object|get_attr:fname %}{{ v|default_if_none:"" }}{% endwith %}</td>
+      </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

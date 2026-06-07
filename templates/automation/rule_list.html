@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Automation Rules</h1>
+<p>
+  <a class="btn" href="{% url 'automation:rule_create' tenant_slug=tenant.slug %}">+ New Rule</a>
+  <a class="btn secondary" href="{% url 'automation:rulerun_list' tenant_slug=tenant.slug %}">Run history</a>
+</p>
+
+<table>
+  <thead><tr><th>Name</th><th>Event</th><th>Action</th><th>Active</th><th>Last run</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+    {% for r in rules %}
+    <tr>
+      <td>{{ r.name }}</td>
+      <td><code>{{ r.event_type }}</code></td>
+      <td><code>{{ r.action_type }}</code></td>
+      <td>{{ r.is_active|yesno }}</td>
+      <td>{{ r.last_run_at|date:"Y-m-d H:i"|default:"-" }}</td>
+      <td>{{ r.last_run_status|default:"-" }}{% if r.last_run_error %} <span class="badge" style="background:#dc3545;">err</span>{% endif %}</td>
+      <td>
+        <a class="btn small" href="{% url 'automation:rule_edit' tenant_slug=tenant.slug pk=r.pk %}">edit</a>
+        <a class="btn small danger" href="{% url 'automation:rule_delete' tenant_slug=tenant.slug pk=r.pk %}">del</a>
+      </td>
+    </tr>
+    {% empty %}<tr><td colspan="7" class="muted">No rules yet.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

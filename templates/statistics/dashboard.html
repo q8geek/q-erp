@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Statistics & Performance</h1>
+{% if not has_custom_config %}<p class="muted">Showing all available widgets for active modules. <a href="{% url 'statistics:configure' tenant_slug=tenant.slug %}">Configure</a> to choose your own set.</p>{% endif %}
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;">
+  {% for w in widgets %}
+  <div class="card">
+    <div class="muted" style="font-size:.85rem;">{{ w.label }}</div>
+    <div style="font-size:2rem;line-height:1.1;">{{ w.value }}</div>
+    <div class="muted" style="font-size:.8rem;">{{ w.hint }} {{ w.unit }}</div>
+  </div>
+  {% empty %}
+  <p class="muted">No widgets available — enable some modules first.</p>
+  {% endfor %}
+</div>
+{% endblock %}

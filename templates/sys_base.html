@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{% block title %}System Admin · Q-ERP{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { margin: 0; font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #111; background: #fff; }
+    .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    .sidebar { background: #1a1a2e; color: #fff; padding: 1rem; }
+    .sidebar a { color: #fff; display: block; padding: .35rem .5rem; border-radius: 4px; }
+    .sidebar a:hover { background: rgba(255,255,255,.1); text-decoration: none; }
+    .sidebar h2 { font-size: 1.1rem; margin: 0 0 1rem; color: #ffd166; }
+    .topbar { padding: .75rem 1.5rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+    .content { padding: 1.5rem; }
+    .card { border: 1px solid #eee; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .5rem .75rem; border-bottom: 1px solid #eee; text-align: left; }
+    th { background: #f6f6f6; }
+    .btn { display: inline-block; padding: .4rem .9rem; border-radius: 4px; background: #1f6feb; color: #fff; border: 0; cursor: pointer; }
+    .btn.danger { background: #dc3545; }
+    .btn.secondary { background: #6c757d; }
+    .btn.small { padding: .2rem .5rem; font-size: .85rem; }
+    .badge { display: inline-block; padding: .15rem .5rem; border-radius: 999px; font-size: .75rem; background: #2ea043; color: #fff; }
+    .badge.core { background: #ffd166; color: #333; }
+    .badge.muted { background: #aaa; }
+    input, select, textarea { padding: .4rem .6rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; width: 100%; }
+    .messages { list-style: none; padding: 0; }
+    .messages li { padding: .5rem .75rem; border-radius: 4px; margin-bottom: .5rem; }
+    .messages .success { background: #d1fae5; color: #065f46; }
+    .messages .error, .messages .danger { background: #fee2e2; color: #991b1b; }
+    .messages .warning { background: #fef3c7; color: #92400e; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <h2>SYSTEM ADMIN</h2>
+    <a href="{% url 'sys_admin:dashboard' %}">Dashboard</a>
+    <a href="{% url 'sys_admin:tenant_list' %}">Tenants</a>
+    {% if user.is_global_admin %}
+      <a href="{% url 'sys_admin:tenant_create' %}">New Tenant</a>
+      <a href="{% url 'sys_admin:sysadmin_list' %}">System Admins</a>
+    {% endif %}
+    <a href="{% url 'sys_admin:activity' %}">Activity Log</a>
+    <a href="/admin/">Django Admin</a>
+  </aside>
+  <main>
+    <div class="topbar">
+      <div><strong>{{ user.username }}</strong>{% if user.is_global_admin %} <span class="badge">GLOBAL</span>{% endif %}</div>
+      <div>
+        <form action="{% url 'logout' %}" method="post" style="display:inline">{% csrf_token %}<button class="btn small secondary">Logout</button></form>
+      </div>
+    </div>
+    <div class="content">
+      {% if messages %}<ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+</body>
+</html>

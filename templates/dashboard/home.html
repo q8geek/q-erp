@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ tenant.name }} Dashboard</h1>
+
+<div class="row">
+  <div class="card">
+    <div class="muted">Seats</div>
+    <div style="font-size:1.6rem;">{{ seats_used }}{% if seats_limit %} / {{ seats_limit }}{% endif %}</div>
+  </div>
+  <div class="card">
+    <div class="muted">Active modules</div>
+    <div style="font-size:1.6rem;">{{ active_modules|length }}</div>
+  </div>
+  <div class="card">
+    <div class="muted">Currency</div>
+    <div style="font-size:1.6rem;">{{ tenant_settings.currency_code }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Active modules</h3>
+  <p>{% for code in active_modules %}<span class="pill">{{ code }}</span> {% endfor %}</p>
+</div>
+{% endblock %}
