@@ -4,10 +4,10 @@
 {% with can_manage=user|can_manage_module:module_code %}
 <h1>{{ object }}</h1>
 <p>
-  <a class="btn" href="{% url config.url_namespace|add:":"|add:model_name|add:"_list" tenant_slug=tenant.slug %}">« back</a>
+  <a class="btn" href="{% url config.url_namespace|add:":"|add:model_name|add:"_list" tenant_slug=tenant.slug %}" title="Back to list">« back</a>
   {% if can_manage %}
-  <a class="btn secondary" href="{% url config.url_namespace|add:":"|add:model_name|add:"_edit" tenant_slug=tenant.slug pk=object.pk %}">edit</a>
-  <a class="btn danger" href="{% url config.url_namespace|add:":"|add:model_name|add:"_delete" tenant_slug=tenant.slug pk=object.pk %}">delete</a>
+  <a class="btn icon secondary" href="{% url config.url_namespace|add:":"|add:model_name|add:"_edit" tenant_slug=tenant.slug pk=object.pk %}" title="Edit">✏️ Edit</a>
+  <a class="btn icon danger" href="{% url config.url_namespace|add:":"|add:model_name|add:"_delete" tenant_slug=tenant.slug pk=object.pk %}" title="Delete">🗑️ Delete</a>
   {% endif %}
 </p>
 
@@ -15,11 +15,13 @@
   <table>
     {% for label, fname in object_fields %}
       <tr>
-        <th style="width:30%;">{{ label|capfirst }}</th>
+        <th style="width:30%;">{{ label }}</th>
         <td>{% with v=object|get_attr:fname %}{{ v|default_if_none:"" }}{% endwith %}</td>
       </tr>
     {% endfor %}
   </table>
 </div>
+
+{% block detail_extras %}{% endblock %}
 {% endwith %}
 {% endblock %}

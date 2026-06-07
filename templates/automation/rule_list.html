@@ -5,7 +5,7 @@
 <h1>Automation Rules</h1>
 <p>
   {% if can_manage %}
-  <a class="btn" href="{% url 'automation:rule_create' tenant_slug=tenant.slug %}">+ New Rule</a>
+  <a class="btn" href="{% url 'automation:rule_create' tenant_slug=tenant.slug %}" title="Create new rule">➕ New Rule</a>
   {% endif %}
   <a class="btn secondary" href="{% url 'automation:rulerun_list' tenant_slug=tenant.slug %}">Run history</a>
 </p>
@@ -21,10 +21,10 @@
       <td>{{ r.is_active|yesno }}</td>
       <td>{{ r.last_run_at|date:"Y-m-d H:i"|default:"-" }}</td>
       <td>{{ r.last_run_status|default:"-" }}{% if r.last_run_error %} <span class="badge" style="background:#dc3545;">err</span>{% endif %}</td>
-      <td>
+      <td class="actions">
         {% if can_manage %}
-        <a class="btn small" href="{% url 'automation:rule_edit' tenant_slug=tenant.slug pk=r.pk %}">edit</a>
-        <a class="btn small danger" href="{% url 'automation:rule_delete' tenant_slug=tenant.slug pk=r.pk %}">del</a>
+        <a class="btn small icon secondary" href="{% url 'automation:rule_edit' tenant_slug=tenant.slug pk=r.pk %}" title="Edit">✏️</a>
+        <a class="btn small icon danger" href="{% url 'automation:rule_delete' tenant_slug=tenant.slug pk=r.pk %}" title="Delete">🗑️</a>
         {% endif %}
       </td>
     </tr>

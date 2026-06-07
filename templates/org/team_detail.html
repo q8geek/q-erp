@@ -1,0 +1,25 @@
+{% extends "module/detail.html" %}
+
+{% block detail_extras %}
+
+<div class="card">
+  <h3>Team members</h3>
+  {% if team_memberships %}
+  <table>
+    <thead><tr><th>Name</th><th>Title</th><th>Role</th></tr></thead>
+    <tbody>
+      {% for m in team_memberships %}
+      <tr>
+        <td>{{ m.user }}</td>
+        <td>{{ m.title|default:"—" }}</td>
+        <td>{% if m.is_head_of_team %}<span class="badge">Head of team</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="muted">No members yet.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

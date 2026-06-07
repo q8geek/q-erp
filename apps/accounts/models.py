@@ -77,7 +77,22 @@ class User(AbstractUser):
         ]
 
     def __str__(self) -> str:
-        return self.email or self.username or f"user#{self.pk}"
+        # Display priority: "First Last" > "First" > "Last" > username > email.
+        # The previous implementation defaulted to email which exposed the
+        # internal `<user>@<tenant>.example` format on demo deployments.
+        first = (self.first_name or "").strip()
+        last = (self.last_name or "").strip()
+        if first and last:
+            return f"{first} {last}"
+        if first:
+            return first
+        if last:
+            return last
+        if self.username:
+            return self.username
+        if self.email:
+            return self.email
+        return f"user#{self.pk}"
 
     def clean(self):
         super().clean()

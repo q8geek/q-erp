@@ -6,31 +6,31 @@
 
 {% if can_manage %}
 <p>
-  <a class="btn" href="{% url config.url_namespace|add:":"|add:model_name|add:"_create" tenant_slug=tenant.slug %}">+ New {{ verbose_name }}</a>
+  <a class="btn" href="{% url config.url_namespace|add:":"|add:model_name|add:"_create" tenant_slug=tenant.slug %}" title="Create new {{ verbose_name }}">➕ New {{ verbose_name }}</a>
 </p>
 {% endif %}
 
 <table>
   <thead>
     <tr>
-      {% for f in list_display %}<th>{{ f }}</th>{% endfor %}
+      {% for fname, label in list_columns %}<th>{{ label }}</th>{% endfor %}
       <th></th>
     </tr>
   </thead>
   <tbody>
     {% for obj in objects %}
     <tr>
-      {% for f in list_display %}<td>{% with v=obj|get_attr:f %}{{ v|default_if_none:"" }}{% endwith %}</td>{% endfor %}
-      <td>
-        <a class="btn small" href="{% url config.url_namespace|add:":"|add:model_name|add:"_detail" tenant_slug=tenant.slug pk=obj.pk %}">view</a>
+      {% for fname, label in list_columns %}<td>{% with v=obj|get_attr:fname %}{{ v|default_if_none:"" }}{% endwith %}</td>{% endfor %}
+      <td class="actions">
+        <a class="btn small icon" href="{% url config.url_namespace|add:":"|add:model_name|add:"_detail" tenant_slug=tenant.slug pk=obj.pk %}" title="View">👁</a>
         {% if can_manage %}
-        <a class="btn small secondary" href="{% url config.url_namespace|add:":"|add:model_name|add:"_edit" tenant_slug=tenant.slug pk=obj.pk %}">edit</a>
-        <a class="btn small danger" href="{% url config.url_namespace|add:":"|add:model_name|add:"_delete" tenant_slug=tenant.slug pk=obj.pk %}">del</a>
+        <a class="btn small icon secondary" href="{% url config.url_namespace|add:":"|add:model_name|add:"_edit" tenant_slug=tenant.slug pk=obj.pk %}" title="Edit">✏️</a>
+        <a class="btn small icon danger" href="{% url config.url_namespace|add:":"|add:model_name|add:"_delete" tenant_slug=tenant.slug pk=obj.pk %}" title="Delete">🗑️</a>
         {% endif %}
       </td>
     </tr>
     {% empty %}
-    <tr><td colspan="{{ list_display|length|add:1 }}" class="muted">No records yet.</td></tr>
+    <tr><td colspan="{{ list_columns|length|add:1 }}" class="muted">No records yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>

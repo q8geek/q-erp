@@ -13,10 +13,10 @@
       <td>{{ t.get_priority_display }}</td>
       <td>{{ t.get_status_display }}</td>
       <td>{{ t.due_date|default:"-" }}</td>
-      <td>
-        <a class="btn small" href="{% url 'tasks:task_detail' tenant_slug=tenant.slug pk=t.pk %}">view</a>
+      <td class="actions">
+        <a class="btn small icon" href="{% url 'tasks:task_detail' tenant_slug=tenant.slug pk=t.pk %}" title="View">👁</a>
         {% if can_manage %}
-        <a class="btn small secondary" href="{% url 'tasks:task_edit' tenant_slug=tenant.slug pk=t.pk %}">edit</a>
+        <a class="btn small icon secondary" href="{% url 'tasks:task_edit' tenant_slug=tenant.slug pk=t.pk %}" title="Edit">✏️</a>
         {% endif %}
       </td>
     </tr>

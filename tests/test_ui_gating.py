@@ -35,13 +35,22 @@ def _give_view_only(user, tenant, module_codes):
     user.groups.add(group)
 
 
+def _has_url(html: str, url_path: str) -> bool:
+    """Test whether a given URL is anchored in the HTML.
+
+    Robust to UI-button label changes (text vs icon vs emoji): we only
+    care that the user has (or hasn't) been given a way to navigate to
+    the URL.
+    """
+    return f'href="{url_path}"' in html
+
+
 def test_view_only_user_sees_no_new_or_edit_buttons_in_list(
     client, tenant_a, user_a_regular
 ):
-    """View-only finance user reaches the list but should see no manage buttons."""
+    """View-only finance user reaches the list but should see no manage anchors."""
     _give_view_only(user_a_regular, tenant_a, ["finance"])
-    # Seed one row so the row-level action cells render
-    Account.objects.create(
+    acc = Account.objects.create(
         tenant=tenant_a, code="1000", name="Cash", type=Account.Type.ASSET
     )
     client.login(username="alpha-user", password="pass")
@@ -49,18 +58,18 @@ def test_view_only_user_sees_no_new_or_edit_buttons_in_list(
     resp = client.get(f"/t/{tenant_a.slug}/finance/account/")
     assert resp.status_code == 200
     html = resp.content.decode()
-    # The "+ New" button is gated
-    assert "New account" not in html
-    # The "view" button still appears
-    assert ">view<" in html
-    # The "edit"/"del" buttons are gated
-    assert ">edit<" not in html
-    assert ">del<" not in html
+    # The "create new" link is gated.
+    assert not _has_url(html, f"/t/{tenant_a.slug}/finance/account/new/")
+    # The "view" link still appears for the existing row.
+    assert _has_url(html, f"/t/{tenant_a.slug}/finance/account/{acc.pk}/")
+    # The "edit" / "delete" links are gated.
+    assert not _has_url(html, f"/t/{tenant_a.slug}/finance/account/{acc.pk}/edit/")
+    assert not _has_url(html, f"/t/{tenant_a.slug}/finance/account/{acc.pk}/delete/")
 
 
 def test_manager_sees_new_edit_delete_buttons(client, tenant_a, user_a_admin):
-    """Tenant admin sees every action button."""
-    Account.objects.create(
+    """Tenant admin sees every action anchor."""
+    acc = Account.objects.create(
         tenant=tenant_a, code="1000", name="Cash", type=Account.Type.ASSET
     )
     client.login(username="alpha-admin", password="pass")
@@ -68,9 +77,9 @@ def test_manager_sees_new_edit_delete_buttons(client, tenant_a, user_a_admin):
     resp = client.get(f"/t/{tenant_a.slug}/finance/account/")
     assert resp.status_code == 200
     html = resp.content.decode()
-    assert "New account" in html
-    assert ">edit<" in html
-    assert ">del<" in html
+    assert _has_url(html, f"/t/{tenant_a.slug}/finance/account/new/")
+    assert _has_url(html, f"/t/{tenant_a.slug}/finance/account/{acc.pk}/edit/")
+    assert _has_url(html, f"/t/{tenant_a.slug}/finance/account/{acc.pk}/delete/")
 
 
 def test_view_only_user_detail_page_hides_edit_delete(
@@ -85,10 +94,10 @@ def test_view_only_user_detail_page_hides_edit_delete(
     resp = client.get(f"/t/{tenant_a.slug}/finance/account/{acc.pk}/")
     assert resp.status_code == 200
     html = resp.content.decode()
-    assert ">edit<" not in html
-    assert ">delete<" not in html
-    # Back button still there
-    assert "back" in html
+    assert not _has_url(html, f"/t/{tenant_a.slug}/finance/account/{acc.pk}/edit/")
+    assert not _has_url(html, f"/t/{tenant_a.slug}/finance/account/{acc.pk}/delete/")
+    # Back button still there.
+    assert _has_url(html, f"/t/{tenant_a.slug}/finance/account/")
 
 
 def test_view_only_user_does_not_see_tenant_admin_sidebar(
@@ -147,3 +156,126 @@ def test_template_tag_can_manage_module():
 
     assert can_manage_module(AnonymousUser(), "finance") is False
     assert can_manage_module(None, "finance") is False
+
+
+# ---------------------------------------------------------------------------
+# User display-name rendering
+# ---------------------------------------------------------------------------
+
+def test_user_str_prefers_full_name_over_username_or_email(tenant_a):
+    """``User.__str__`` should return 'First Last' when both are set."""
+    from apps.accounts.models import User
+
+    u = User.objects.create_user(
+        username="someuser",
+        email="someuser@x.test",
+        password="pass",
+        tenant=tenant_a,
+        first_name="Alex",
+        last_name="Patel",
+    )
+    assert str(u) == "Alex Patel"
+
+
+def test_user_str_falls_back_to_username_when_no_name(tenant_a):
+    from apps.accounts.models import User
+
+    u = User.objects.create_user(
+        username="nameless",
+        email="nameless@x.test",
+        password="pass",
+        tenant=tenant_a,
+    )
+    assert str(u) == "nameless"
+
+
+# ---------------------------------------------------------------------------
+# Friendlier list-view header labels
+# ---------------------------------------------------------------------------
+
+def test_list_view_uses_friendly_header_labels(client, tenant_a, user_a_admin):
+    """`is_active` should render as 'Active' (not 'is_active' or 'Is active')."""
+    Account.objects.create(
+        tenant=tenant_a, code="1000", name="Cash", type=Account.Type.ASSET
+    )
+    client.login(username="alpha-admin", password="pass")
+    resp = client.get(f"/t/{tenant_a.slug}/finance/account/")
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    # The header is the cleaned-up label.
+    assert "<th>Active</th>" in html
+    # The raw field name and Django's default verbose ('Is active')
+    # should NOT leak.
+    assert "<th>is_active</th>" not in html
+    assert "<th>Is active</th>" not in html
+
+
+# ---------------------------------------------------------------------------
+# Org department / team detail pages
+# ---------------------------------------------------------------------------
+
+def test_department_detail_shows_teams_and_members_cards(
+    client, tenant_a, user_a_admin, user_a_regular
+):
+    from apps.org.models import Department, Membership, Team
+
+    dept = Department.objects.create(tenant=tenant_a, code="ENG", name="Engineering")
+    team = Team.objects.create(
+        tenant=tenant_a, code="ENG-A", name="Engineering Team A", department=dept,
+    )
+    # Give admin a head-of-department membership.
+    Membership.objects.create(
+        tenant=tenant_a, user=user_a_admin, department=dept, team=None,
+        title="Engineering Manager", is_head_of_department=True,
+    )
+    # Give regular a team membership.
+    user_a_regular.first_name = "Pat"
+    user_a_regular.last_name = "Lee"
+    user_a_regular.save()
+    Membership.objects.create(
+        tenant=tenant_a, user=user_a_regular, department=dept, team=team,
+        title="Software Engineer",
+    )
+
+    client.login(username="alpha-admin", password="pass")
+    resp = client.get(f"/t/{tenant_a.slug}/org/department/{dept.pk}/")
+    assert resp.status_code == 200
+    html = resp.content.decode()
+
+    # Teams card content.
+    assert "Teams in this department" in html
+    assert "Engineering Team A" in html
+    # Link to the team's own detail page.
+    assert _has_url(html, f"/t/{tenant_a.slug}/org/team/{team.pk}/")
+
+    # Members card content.
+    assert "Pat Lee" in html  # regular's full name
+    assert "Engineering Manager" in html  # admin's title
+    assert "Head of dept." in html  # role badge
+
+
+def test_team_detail_shows_member_list(
+    client, tenant_a, user_a_admin, user_a_regular
+):
+    from apps.org.models import Department, Membership, Team
+
+    dept = Department.objects.create(tenant=tenant_a, code="OPS", name="Operations")
+    team = Team.objects.create(
+        tenant=tenant_a, code="OPS-A", name="Ops Team A", department=dept,
+    )
+    user_a_regular.first_name = "Sam"
+    user_a_regular.last_name = "Khan"
+    user_a_regular.save()
+    Membership.objects.create(
+        tenant=tenant_a, user=user_a_regular, department=dept, team=team,
+        title="SRE", is_head_of_team=True,
+    )
+
+    client.login(username="alpha-admin", password="pass")
+    resp = client.get(f"/t/{tenant_a.slug}/org/team/{team.pk}/")
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    assert "Team members" in html
+    assert "Sam Khan" in html
+    assert "SRE" in html
+    assert "Head of team" in html

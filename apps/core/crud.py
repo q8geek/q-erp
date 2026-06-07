@@ -117,6 +117,11 @@ class ModuleCRUDConfig:
     list_select_related: list[str] = []
     # Reverse / M2M relations to prefetch on the list view.
     list_prefetch_related: list[str] = []
+    # Optional per-field header label overrides. Field names not listed
+    # here fall through to ``humanize_field_label`` (which uses the
+    # model's verbose_name, then strips a leading "is_" prefix so
+    # ``is_active`` renders as ``active``).
+    list_display_labels: dict[str, str] = {}
     url_namespace: str = ""
     module_code: str = ""
 
@@ -127,6 +132,36 @@ class ModuleCRUDConfig:
     @classmethod
     def manage_perm(cls):
         return f"{cls.module_code}.manage_{cls.module_code}"
+
+
+def humanize_field_label(model, field_name: str, override: str | None = None) -> str:
+    """Pick a user-facing header label for ``field_name`` on ``model``.
+
+    Order of precedence:
+      1. Explicit ``override`` from ``ModuleCRUDConfig.list_display_labels``.
+      2. The Django field's ``verbose_name`` (already humanised by Django
+         to e.g. ``"is active"`` for an ``is_active`` BooleanField).
+      3. Strip a leading ``is_`` prefix and replace underscores with
+         spaces (``is_active`` -> ``active``).
+
+    The ``is_`` prefix strip is the small extra step that turns Django's
+    default ``"is active"`` header into the cleaner ``"active"`` UX you
+    expect on a list view.
+    """
+    if override:
+        return override
+    try:
+        field = model._meta.get_field(field_name)
+    except Exception:  # pragma: no cover - defensive
+        field = None
+    if field is not None:
+        label = str(field.verbose_name or field_name)
+    else:
+        label = field_name
+    # Strip leading "is " so BooleanFields render naturally.
+    if label.lower().startswith("is "):
+        label = label[3:]
+    return label.capitalize() if label else label
 
 
 def make_form(model_class, fields):
@@ -158,9 +193,18 @@ class TenantScopedListView(TenantPermissionRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["config"] = self.config
-        ctx["list_display"] = self.config.list_display or [
+        fields = self.config.list_display or [
             f.name for f in self.config.model._meta.fields if f.name != "tenant"
         ]
+        labels = self.config.list_display_labels or {}
+        # Pair each field name with its rendered header label so the
+        # template can iterate once.
+        ctx["list_columns"] = [
+            (name, humanize_field_label(self.config.model, name, labels.get(name)))
+            for name in fields
+        ]
+        # Kept for back-compat with templates that still iterate list_display.
+        ctx["list_display"] = fields
         ctx["module_code"] = self.config.module_code
         ctx["model_name"] = self.config.model._meta.model_name
         ctx["verbose_name"] = self.config.model._meta.verbose_name
@@ -186,8 +230,12 @@ class TenantScopedDetailView(TenantPermissionRequiredMixin, DetailView):
         ctx["model_name"] = self.config.model._meta.model_name
         ctx["verbose_name"] = self.config.model._meta.verbose_name
         ctx["verbose_name_plural"] = self.config.model._meta.verbose_name_plural
+        labels = self.config.list_display_labels or {}
         ctx["object_fields"] = [
-            (f.verbose_name, f.name)
+            (
+                humanize_field_label(self.config.model, f.name, labels.get(f.name)),
+                f.name,
+            )
             for f in self.config.model._meta.fields
             if f.name != "tenant"
         ]

@@ -878,8 +878,10 @@ class Command(BaseCommand):
         for team in teams:
             n = rng.randint(2, 5)
             for i in range(n):
-                username = self._team_user_name(tenant, team.code, i, rng, first_names, last_names)
-                user = self._ensure_team_user(tenant, username, mu_group)
+                username, first, last = self._pick_team_user(
+                    tenant, team.code, i, rng, first_names, last_names,
+                )
+                user = self._ensure_team_user(tenant, username, first, last, mu_group)
                 Membership.objects.update_or_create(
                     tenant=tenant, user=user, department=team.department, team=team,
                     defaults={"title": "Team Member", "is_head_of_department": False, "is_head_of_team": False},
@@ -891,8 +893,10 @@ class Command(BaseCommand):
         for dept in departments:
             n = rng.randint(1, 2)
             for i in range(n):
-                username = self._team_user_name(tenant, f"dept-{dept.code}", i, rng, first_names, last_names)
-                user = self._ensure_team_user(tenant, username, mu_group)
+                username, first, last = self._pick_team_user(
+                    tenant, f"dept-{dept.code}", i, rng, first_names, last_names,
+                )
+                user = self._ensure_team_user(tenant, username, first, last, mu_group)
                 Membership.objects.update_or_create(
                     tenant=tenant, user=user, department=dept, team=None,
                     defaults={"title": "Staff", "is_head_of_department": False, "is_head_of_team": False},
@@ -913,18 +917,32 @@ class Command(BaseCommand):
         )
         return created_users
 
-    def _team_user_name(
+    def _pick_team_user(
         self, tenant: Tenant, scope: str, index: int,
         rng, first_names: list[str], last_names: list[str],
-    ) -> str:
-        """Deterministic, slug-safe, tenant-unique username."""
-        first = rng.choice(first_names).lower()
-        last = rng.choice(last_names).lower()
+    ) -> tuple[str, str, str]:
+        """Deterministically pick a (username, first_name, last_name) triple.
+
+        The username is a slug-safe, tenant-unique identifier; the
+        first/last names are stored on the User row so ``User.__str__``
+        renders cleanly as "First Last" in dropdowns, activity logs,
+        org membership tables, etc.
+        """
+        first = rng.choice(first_names)  # Capitalised already
+        last = rng.choice(last_names)
         scope_slug = scope.lower().replace("-", "").replace("_", "")
-        return f"{tenant.slug}-{scope_slug}-{first}-{last}-{index}"[:150]
+        username = (
+            f"{tenant.slug}-{scope_slug}-{first.lower()}-{last.lower()}-{index}"
+        )[:150]
+        return username, first, last
 
     def _ensure_team_user(
-        self, tenant: Tenant, username: str, mu_group: Group | None,
+        self,
+        tenant: Tenant,
+        username: str,
+        first_name: str,
+        last_name: str,
+        mu_group: Group | None,
     ) -> User:
         """Idempotent: get-or-create the user, ensure password+group set."""
         user, created = User.objects.get_or_create(
@@ -932,14 +950,27 @@ class Command(BaseCommand):
             defaults={
                 "email": f"{username}@{tenant.slug}.example",
                 "tenant": tenant,
-                "first_name": username.split("-")[2].capitalize() if len(username.split("-")) > 3 else "",
-                "last_name": username.split("-")[3].capitalize() if len(username.split("-")) > 4 else "",
+                "first_name": first_name,
+                "last_name": last_name,
             },
         )
         if created:
             user.tenant = tenant
             user.set_password("pass")
             user.save()
+        else:
+            # Repair display names on existing rows so re-running fixes
+            # users created by an earlier version of this command (which
+            # parsed names out of the username slug awkwardly).
+            updates = []
+            if user.first_name != first_name:
+                user.first_name = first_name
+                updates.append("first_name")
+            if user.last_name != last_name:
+                user.last_name = last_name
+                updates.append("last_name")
+            if updates:
+                user.save(update_fields=updates)
         if mu_group is not None and not user.groups.filter(pk=mu_group.pk).exists():
             user.groups.add(mu_group)
         return user
