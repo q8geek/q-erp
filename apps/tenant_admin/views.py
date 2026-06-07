@@ -28,9 +28,12 @@ class TenantAdminHome(TenantAdminMixin, TemplateView):
         ctx["tenant"] = tenant
         ctx["seats_used"] = tenant.active_user_count()
         ctx["seats_limit"] = tenant.effective_seat_limit()
-        ctx["active_modules"] = TenantModule.objects.filter(
-            tenant=tenant, disabled_at__isnull=True
-        ).select_related("module")
+        ctx["active_modules"] = (
+            TenantModule.objects
+            .filter(tenant=tenant, disabled_at__isnull=True)
+            .select_related("module")
+            .order_by("sort_order", "module__name")
+        )
         return ctx
 
 
@@ -158,6 +161,117 @@ def settings_view(request, tenant_slug):
     else:
         form = TenantSettingsForm(instance=settings_obj)
     return render(request, "tenant_admin/settings.html", {"form": form, "tenant": tenant})
+
+
+# --- Module sidebar reorder ------------------------------------------------
+
+def modules_reorder(request, tenant_slug):
+    """Let a tenant admin reorder active modules on their sidebar.
+
+    UX: each active module shows up/down arrows. Each click POSTs the
+    ``direction`` (``"up"`` or ``"down"``) and the affected ``tm_id``.
+    We swap that row's ``sort_order`` with its immediate neighbour
+    (in the current order), redirect back to GET so refresh is safe,
+    and bust the menu cache so the change shows immediately.
+    """
+    enforce_tenant_manage(request, "tenants.manage_tenant")
+    tenant = request.tenant
+
+    if request.method == "POST":
+        from apps.core.context_processors import invalidate_menu_for_tenant
+
+        direction = request.POST.get("direction")
+        tm_id_raw = request.POST.get("tm_id")
+        try:
+            tm_id = int(tm_id_raw or "")
+        except (TypeError, ValueError):
+            messages.error(request, "Invalid module id.")
+            return redirect("tenant_admin:modules_reorder", tenant_slug=tenant_slug)
+        if direction not in ("up", "down"):
+            messages.error(request, "Invalid direction.")
+            return redirect("tenant_admin:modules_reorder", tenant_slug=tenant_slug)
+
+        # All currently-active modules in sidebar order.
+        active = list(
+            TenantModule.objects.filter(tenant=tenant, disabled_at__isnull=True)
+            .select_related("module")
+            .order_by("sort_order", "module__name", "id")
+        )
+        # Find the target.
+        try:
+            idx = next(i for i, tm in enumerate(active) if tm.pk == tm_id)
+        except StopIteration:
+            messages.error(request, "That module is not active.")
+            return redirect("tenant_admin:modules_reorder", tenant_slug=tenant_slug)
+
+        # Pick the neighbour to swap with.
+        if direction == "up":
+            if idx == 0:
+                messages.info(request, "Already at the top.")
+                return redirect("tenant_admin:modules_reorder", tenant_slug=tenant_slug)
+            neighbour = active[idx - 1]
+        else:
+            if idx == len(active) - 1:
+                messages.info(request, "Already at the bottom.")
+                return redirect("tenant_admin:modules_reorder", tenant_slug=tenant_slug)
+            neighbour = active[idx + 1]
+        target = active[idx]
+
+        # Swap atomically. We can't do a single UPDATE because of the
+        # in-memory tuple swap, so two updates in a transaction.
+        with transaction.atomic():
+            target_order = target.sort_order
+            neighbour_order = neighbour.sort_order
+            # Edge case: both currently tie (e.g. legacy data where backfill
+            # never ran). Re-number to give them distinct slots before
+            # swapping.
+            if target_order == neighbour_order:
+                # Renumber the entire list to (10, 20, 30, ...).
+                for new_idx, tm in enumerate(active):
+                    new_order = (new_idx + 1) * 10
+                    if tm.sort_order != new_order:
+                        TenantModule.objects.filter(pk=tm.pk).update(
+                            sort_order=new_order
+                        )
+                # Re-read the now-distinct values.
+                target.refresh_from_db(fields=["sort_order"])
+                neighbour.refresh_from_db(fields=["sort_order"])
+                target_order = target.sort_order
+                neighbour_order = neighbour.sort_order
+            TenantModule.objects.filter(pk=target.pk).update(
+                sort_order=neighbour_order
+            )
+            TenantModule.objects.filter(pk=neighbour.pk).update(
+                sort_order=target_order
+            )
+
+        log_change(
+            request,
+            action="tenant_admin.module.reorder",
+            obj=target,
+            extra={
+                "module_code": target.module.code,
+                "direction": direction,
+            },
+        )
+        invalidate_menu_for_tenant(tenant.id)
+        messages.success(
+            request,
+            f"Moved '{target.module.name}' {direction}.",
+        )
+        return redirect("tenant_admin:modules_reorder", tenant_slug=tenant_slug)
+
+    # GET — render the current order.
+    active = list(
+        TenantModule.objects.filter(tenant=tenant, disabled_at__isnull=True)
+        .select_related("module")
+        .order_by("sort_order", "module__name", "id")
+    )
+    return render(
+        request,
+        "tenant_admin/modules_reorder.html",
+        {"tenant": tenant, "active": active},
+    )
 
 
 # --- Activity --------------------------------------------------------------

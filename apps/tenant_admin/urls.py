@@ -14,4 +14,5 @@ urlpatterns = [
     path("groups/<int:group_id>/delete/", views.group_delete, name="group_delete"),
     path("settings/", views.settings_view, name="settings"),
     path("activity/", views.ActivityView.as_view(), name="activity"),
+    path("modules/reorder/", views.modules_reorder, name="modules_reorder"),
 ]

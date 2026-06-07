@@ -136,7 +136,13 @@ class Command(BaseCommand):
         attached = 0
         for tenant in Tenant.objects.all():
             for module in core_modules:
-                _, created = TenantModule.objects.get_or_create(tenant=tenant, module=module)
+                _, created = TenantModule.objects.get_or_create(
+                    tenant=tenant,
+                    module=module,
+                    defaults={
+                        "sort_order": TenantModule.next_sort_order_for(tenant),
+                    },
+                )
                 if created:
                     attached += 1
         return attached

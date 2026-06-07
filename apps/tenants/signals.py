@@ -18,9 +18,16 @@ def on_tenant_created(sender, instance: Tenant, created: bool, **kwargs):
     # 1. Create TenantSettings
     TenantSettings.objects.get_or_create(tenant=instance, defaults={"display_name": instance.name})
 
-    # 2. Auto-attach all core modules
-    for module in Module.objects.filter(is_core=True):
-        TenantModule.objects.get_or_create(tenant=instance, module=module)
+    # 2. Auto-attach all core modules. Assign incrementing sort_order
+    # values so the sidebar order is stable on the very first render
+    # (without this, every newly-attached core module ties at 0 and
+    # Django's secondary sort by module name takes over).
+    for index, module in enumerate(Module.objects.filter(is_core=True).order_by("name")):
+        TenantModule.objects.get_or_create(
+            tenant=instance,
+            module=module,
+            defaults={"sort_order": (index + 1) * 10},
+        )
 
     # 3. Create reserved "Tenant Administrators" group
     group_name = f"t{instance.id}:{RESERVED_TENANT_ADMIN_GROUP}"

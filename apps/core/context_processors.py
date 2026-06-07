@@ -144,7 +144,15 @@ def menu(request):
     from apps.tenants.registry import get_module_meta
 
     items = []
-    active = TenantModule.objects.filter(tenant=tenant, disabled_at__isnull=True).select_related("module")
+    # Ordering: TenantModule.Meta.ordering applies (sort_order ASC,
+    # then module name). The explicit order_by here is just to make the
+    # contract visible at the call site.
+    active = (
+        TenantModule.objects
+        .filter(tenant=tenant, disabled_at__isnull=True)
+        .select_related("module")
+        .order_by("sort_order", "module__name")
+    )
     for tm in active:
         meta = get_module_meta(tm.module.code)
         if not meta:

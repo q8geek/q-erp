@@ -105,9 +105,15 @@ class Command(BaseCommand):
         )
         sub.is_active = True
         sub.save()
-        # Activate plan modules on tenant
+        # Activate plan modules on tenant. Assign a fresh sort_order to
+        # new attachments so the sidebar order is stable for newly-seeded
+        # tenants instead of every row tying at 0.
         for module in plan.modules.all():
-            TenantModule.objects.get_or_create(tenant=tenant, module=module)
+            TenantModule.objects.get_or_create(
+                tenant=tenant,
+                module=module,
+                defaults={"sort_order": TenantModule.next_sort_order_for(tenant)},
+            )
 
         # Create tenant admin user
         admin_username = f"{slug}-admin"

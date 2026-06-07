@@ -65,9 +65,17 @@ def tenant_create(request):
                 plan = form.cleaned_data.get("plan")
                 if plan:
                     Subscription.objects.create(tenant=tenant, plan=plan)
-                    # Activate add-on modules from the plan
+                    # Activate add-on modules from the plan. Assign a
+                    # fresh sort_order per new row so the sidebar order
+                    # is stable instead of all ties at 0.
                     for module in plan.modules.all():
-                        TenantModule.objects.get_or_create(tenant=tenant, module=module)
+                        TenantModule.objects.get_or_create(
+                            tenant=tenant,
+                            module=module,
+                            defaults={
+                                "sort_order": TenantModule.next_sort_order_for(tenant),
+                            },
+                        )
                 # Create initial admin user
                 admin_user = User.objects.create_user(
                     username=form.cleaned_data["admin_username"],
@@ -136,7 +144,11 @@ def tenant_module_toggle(request, tenant_id, module_id):
     module = get_object_or_404(Module, pk=module_id)
     if request.method != "POST":
         return redirect("sys_admin:tenant_detail", tenant_id=tenant.id)
-    tm, created = TenantModule.objects.get_or_create(tenant=tenant, module=module)
+    tm, created = TenantModule.objects.get_or_create(
+        tenant=tenant,
+        module=module,
+        defaults={"sort_order": TenantModule.next_sort_order_for(tenant)},
+    )
     if created:
         action = "enable"
     else:
@@ -181,10 +193,19 @@ def subscription_edit(request, tenant_id):
             obj = form.save(commit=False)
             obj.tenant = tenant
             obj.save()
-            # Sync add-on TenantModule rows with the plan's modules (don't remove existing).
+            # Sync add-on TenantModule rows with the plan's modules
+            # (don't remove existing). New rows get a fresh sort_order
+            # so they land at the bottom of the sidebar instead of
+            # tying at 0 and falling back to alphabetical.
             if obj.plan:
                 for m in obj.plan.modules.all():
-                    TenantModule.objects.get_or_create(tenant=tenant, module=m)
+                    TenantModule.objects.get_or_create(
+                        tenant=tenant,
+                        module=m,
+                        defaults={
+                            "sort_order": TenantModule.next_sort_order_for(tenant),
+                        },
+                    )
             log_change(request, action="sys_admin.subscription.update", obj=obj)
             messages.success(request, "Subscription updated.")
             return redirect("sys_admin:tenant_detail", tenant_id=tenant.id)

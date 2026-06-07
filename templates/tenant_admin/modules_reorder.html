@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Reorder Sidebar Modules</h1>
+
+<p class="muted">
+  These are the modules currently active for <strong>{{ tenant.name }}</strong>,
+  in the order they appear on the sidebar. Use the up/down arrows to rearrange
+  them — every user in this tenant will see the new order on their next page
+  load.
+</p>
+
+{% if active %}
+<table>
+  <thead>
+    <tr>
+      <th style="width:4rem;">#</th>
+      <th>Module</th>
+      <th>Type</th>
+      <th style="width:8rem;">Order</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for tm in active %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>
+        <strong>{{ tm.module.name }}</strong>
+        <br><small class="muted"><code>{{ tm.module.code }}</code></small>
+      </td>
+      <td>
+        {% if tm.module.is_core %}
+          <span class="badge">core</span>
+        {% else %}
+          <span class="badge muted">add-on</span>
+        {% endif %}
+      </td>
+      <td class="actions">
+        <form method="post" style="display:inline">
+          {% csrf_token %}
+          <input type="hidden" name="tm_id" value="{{ tm.id }}">
+          <input type="hidden" name="direction" value="up">
+          <button class="btn small icon secondary"
+                  type="submit"
+                  title="Move up"
+                  {% if forloop.first %}disabled{% endif %}>⬆️</button>
+        </form>
+        <form method="post" style="display:inline">
+          {% csrf_token %}
+          <input type="hidden" name="tm_id" value="{{ tm.id }}">
+          <input type="hidden" name="direction" value="down">
+          <button class="btn small icon secondary"
+                  type="submit"
+                  title="Move down"
+                  {% if forloop.last %}disabled{% endif %}>⬇️</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="card">
+  <p class="muted">No active modules. (Contact a system admin to enable some.)</p>
+</div>
+{% endif %}
+
+<p>
+  <a class="btn secondary" href="{% url 'tenant_admin:home' tenant_slug=tenant.slug %}">« Back to admin</a>
+</p>
+{% endblock %}

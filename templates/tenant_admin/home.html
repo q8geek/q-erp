@@ -26,7 +26,8 @@
 <p>
   <a class="btn" href="{% url 'tenant_admin:user_list' tenant_slug=tenant.slug %}">Manage Users</a>
   <a class="btn" href="{% url 'tenant_admin:group_list' tenant_slug=tenant.slug %}">Manage Groups</a>
-  <a class="btn" href="{% url 'tenant_admin:settings' tenant_slug=tenant.slug %}">Settings & Branding</a>
+  <a class="btn" href="{% url 'tenant_admin:settings' tenant_slug=tenant.slug %}">Settings &amp; Branding</a>
+  <a class="btn" href="{% url 'tenant_admin:modules_reorder' tenant_slug=tenant.slug %}">Reorder Sidebar</a>
   <a class="btn" href="{% url 'tenant_admin:activity' tenant_slug=tenant.slug %}">Activity Log</a>
 </p>
 {% endblock %}

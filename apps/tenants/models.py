@@ -162,14 +162,36 @@ class TenantModule(models.Model):
     module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name="tenant_modules")
     enabled_at = models.DateTimeField(default=timezone.now)
     disabled_at = models.DateTimeField(null=True, blank=True)
+    # User-controlled sidebar ordering. Newly-enabled modules get a
+    # higher number than any existing one (see `apps.tenants.signals.
+    # on_tenant_created` and `apps/sys_admin/views.tenant_module_toggle`)
+    # so they land at the bottom by default; the tenant admin can then
+    # promote them via the Reorder Modules page.
+    sort_order = models.PositiveIntegerField(default=0)
 
     objects = models.Manager()
 
     class Meta:
         unique_together = (("tenant", "module"),)
+        ordering = ("sort_order", "module__name")
 
     def __str__(self) -> str:
         return f"{self.tenant} / {self.module.code}"
+
+    @classmethod
+    def next_sort_order_for(cls, tenant: "Tenant") -> int:
+        """Return a sort_order one step past the largest existing one in
+        ``tenant``. Used by every call site that creates a fresh
+        TenantModule row so a newly-enabled module reliably lands at the
+        bottom of the sidebar instead of tying at 0.
+        """
+        current_max = (
+            cls.objects.filter(tenant=tenant).aggregate(
+                models.Max("sort_order")
+            )["sort_order__max"]
+            or 0
+        )
+        return current_max + 10
 
     @property
     def is_active(self) -> bool:

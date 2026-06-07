@@ -41,6 +41,7 @@
     .btn.small { padding: .2rem .5rem; font-size: .85rem; }
     .btn.icon { padding: .25rem .45rem; font-size: 1rem; line-height: 1; }
     .btn.small.icon { padding: .15rem .35rem; font-size: .95rem; }
+    .btn:disabled, .btn[disabled] { opacity: .35; cursor: not-allowed; }
     td.actions { white-space: nowrap; text-align: right; }
     td.actions .btn { margin-left: .15rem; }
     .messages { list-style: none; padding: 0; margin: 0 0 1rem; }
@@ -92,6 +93,7 @@
     <a href="{% url 'tenant_admin:user_list' tenant_slug=tenant.slug %}">Users</a>
     <a href="{% url 'tenant_admin:group_list' tenant_slug=tenant.slug %}">Groups</a>
     <a href="{% url 'tenant_admin:settings' tenant_slug=tenant.slug %}">Settings</a>
+    <a href="{% url 'tenant_admin:modules_reorder' tenant_slug=tenant.slug %}">Reorder Sidebar</a>
     <a href="{% url 'tenant_admin:activity' tenant_slug=tenant.slug %}">Activity</a>
     {% endif %}
   </aside>
